@@ -63,43 +63,61 @@ if uploaded_file:
              (grouped_df["Handheld Total"] + grouped_df["POS Total"])) * 100
         ).round(2)
 
-        # Sort by Percentage Handheld Use in descending order
-        grouped_df = grouped_df.sort_values(by="Percentage Handheld Use", ascending=False)
+        # Limit decimals for POS and Handheld Total columns
+        grouped_df["Handheld Total"] = grouped_df["Handheld Total"].map(lambda x: f"{x:,.2f}")
+        grouped_df["POS Total"] = grouped_df["POS Total"].map(lambda x: f"{x:,.2f}")
 
-        # Format percentage column with right justification for CSV output
-        grouped_df["Percentage Handheld Use"] = grouped_df["Percentage Handheld Use"].apply(
-            lambda x: f"{x:.2f}%".rjust(8)
-        )
+        # Format percentage column correctly
+        grouped_df["Percentage Handheld Use"] = grouped_df["Percentage Handheld Use"].map(lambda x: f"{x:.2f}%")
 
-        # Limit decimals for Handheld Total and POS Total
-        grouped_df["Handheld Total"] = grouped_df["Handheld Total"].round(2)
-        grouped_df["POS Total"] = grouped_df["POS Total"].round(2)
+        # Calculate overall totals
+        total_handheld = grouped_df["Handheld Total"].astype(str).str.replace(",", "").astype(float).sum()
+        total_pos = grouped_df["POS Total"].astype(str).str.replace(",", "").astype(float).sum()
+        overall_percentage = (total_handheld / (total_handheld + total_pos) * 100) if (total_handheld + total_pos) > 0 else 0
+
+        # Create the summary row
+        summary_row = pd.DataFrame({
+            "Staff Customer": ["Overall Total"],
+            "Handheld Total": [f"{total_handheld:,.2f}"],
+            "POS Total": [f"{total_pos:,.2f}"],
+            "Percentage Handheld Use": [f"{overall_percentage:.2f}%"]
+        })
+
+        # Separate the summary row before sorting
+        summary_row_df = grouped_df[grouped_df["Staff Customer"] == "Overall Total"]
+        non_summary_df = grouped_df[grouped_df["Staff Customer"] != "Overall Total"]
+
+        # Sort the non-summary data
+        sorted_df = non_summary_df.sort_values(by="Percentage Handheld Use", ascending=False)
+
+        # Append the summary row to the sorted data
+        final_df = pd.concat([sorted_df, summary_row], ignore_index=True)
 
         # Apply conditional formatting for display
         def highlight_row(row):
-            percentage = row["Percentage Handheld Use"]
-            percentage = float(percentage.strip('%').strip())  # Remove % sign and strip spaces
-            if percentage >= 70:
-                return ["background-color: green; color: white; border: 2px solid black"] * len(row)
-            elif 50 <= percentage < 70:
-                return ["background-color: yellow; color: black; border: 2px solid black"] * len(row)
+            if row["Staff Customer"] == "Overall Total":
+                # Blue for overall total
+                return ["background-color: blue; color: white; border: 2px solid black"] * len(row)
             else:
-                return ["background-color: red; color: white; border: 2px solid black"] * len(row)
+                percentage = row["Percentage Handheld Use"]
+                if isinstance(percentage, str):
+                    percentage = float(percentage.replace('%', '').replace(',', ''))
+                if percentage >= 70:
+                    return ["background-color: green; color: white; border: 2px solid black"] * len(row)
+                elif 50 <= percentage < 70:
+                    return ["background-color: yellow; color: black; border: 2px solid black"] * len(row)
+                else:
+                    return ["background-color: red; color: white; border: 2px solid black"] * len(row)
 
-        styled_display_df = grouped_df.style.apply(highlight_row, axis=1).set_properties(
+        styled_display_df = final_df.style.apply(highlight_row, axis=1).set_properties(
             subset=["Percentage Handheld Use"], **{"text-align": "right"}
         ).set_properties(
             subset=["Handheld Total", "POS Total"], **{"text-align": "right"}
         )
 
-        # Show processed data with styling
-        st.write("Processed Data:")
-        st.dataframe(grouped_df)  # Original data for download compatibility
-        st.write(styled_display_df)
-
         # Write CSV with proper formatting
         output = io.BytesIO()
-        grouped_df.to_csv(output, index=False, float_format="%.2f", lineterminator="\n")
+        final_df.to_csv(output, index=False, float_format="%.2f", lineterminator="\n")
         output.seek(0)
 
         # Download processed file
@@ -109,6 +127,11 @@ if uploaded_file:
             file_name="processed_report.csv",
             mime="text/csv"
         )
+
+        # Show processed data with styling
+        st.write("Processed Data:")
+        st.dataframe(final_df)  # Original data for download compatibility
+        st.write(styled_display_df)
 
     except Exception as e:
         st.error(f"An error occurred while processing the file: {e}")
