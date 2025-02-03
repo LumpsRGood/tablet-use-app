@@ -4,7 +4,7 @@ import io
 import numpy as np
 
 # Title of the app
-st.title("Tablet Use Report Processor")
+st.title("Peachtree Daily Tablet Use (v1.3)")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
