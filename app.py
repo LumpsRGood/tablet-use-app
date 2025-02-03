@@ -15,14 +15,17 @@ if uploaded_file:
         # Step 1: Load and Clean Data
         # ---------------------------
         df = pd.read_csv(uploaded_file)
+
         # Normalize column names (remove line breaks, trim spaces)
         df.columns = df.columns.str.replace("\n", " ").str.strip()
+
         # Rename columns for easier reference
         df = df.rename(columns={
             "Device Orders Report": "Device Orders",
             "Staff Customer": "Staff Customer",
             "Base (Including Disc.)": "Base"
         })
+
         # Normalize Device Orders values
         df["Device Orders"] = df["Device Orders"].str.strip().str.lower()
         df["Device Orders"] = df["Device Orders"].replace({
@@ -31,8 +34,10 @@ if uploaded_file:
             "pos": "pos",
             "pos terminal": "pos"
         })
+
         # Extract only 'handheld' or 'pos', defaulting to 'unknown'
         df["Device Orders"] = df["Device Orders"].str.extract(r"(handheld|pos)", expand=False).fillna("unknown")
+
         # Ensure 'Base' column is numeric
         df["Base"] = pd.to_numeric(df["Base"], errors="coerce").fillna(0)
 
@@ -75,18 +80,29 @@ if uploaded_file:
             "Percentage Handheld Use": [f"{overall_percentage:.2f}%"]
         })
 
-        # Exclude any preexisting summary rows and sort by percentage
+        # Exclude any preexisting summary rows and sort by the numeric percentage
         non_summary_df = grouped_df[grouped_df["Staff Customer"] != "Overall Total"]
         sorted_df = non_summary_df.sort_values(by="Percentage Handheld Use Numeric", ascending=False)
         final_df = pd.concat([sorted_df, summary_row], ignore_index=True)
+
+        # ----------------------------
+        # Step 2.5: Rename Output Column Titles
+        # ----------------------------
+        final_df = final_df.rename(columns={
+            "Staff Customer": "Server",
+            "Handheld Total": "Tablet Sales",
+            "POS Total": "POS Sales",
+            "Percentage Handheld Use Numeric": "Tablet Use Percentage (Numeric)",
+            "Percentage Handheld Use": "Tablet Use Percentage"
+        })
 
         # -------------------------------------
         # Step 3: Apply Conditional Formatting
         # -------------------------------------
         def highlight_row(row):
-            if row["Staff Customer"] == "Overall Total":
+            if row["Server"] == "Overall Total":
                 return ["background-color: blue; color: white; border: 2px solid black"] * len(row)
-            percentage = row["Percentage Handheld Use Numeric"]
+            percentage = row["Tablet Use Percentage (Numeric)"]
             if percentage >= 70:
                 return ["background-color: green; color: white; border: 2px solid black"] * len(row)
             elif 50 <= percentage < 70:
@@ -95,9 +111,21 @@ if uploaded_file:
                 return ["background-color: red; color: white; border: 2px solid black"] * len(row)
 
         styled_display_df = final_df.style.apply(highlight_row, axis=1).set_properties(
-            subset=["Percentage Handheld Use"], **{"text-align": "right"}
+            subset=["Tablet Use Percentage"], **{"text-align": "right"}
         ).set_properties(
-            subset=["Handheld Total", "POS Total"], **{"text-align": "right"}
+            subset=["Tablet Sales", "POS Sales"], **{"text-align": "right"}
+        )
+
+        # Hide the "Tablet Use Percentage (Numeric)" column.
+        # The rendered table includes the DataFrame index as the first column,
+        # so the column order becomes:
+        # 1: Index, 2: Server, 3: Tablet Sales, 4: POS Sales, 5: Tablet Use Percentage (Numeric), 6: Tablet Use Percentage.
+        # We hide the 5th column.
+        styled_display_df = styled_display_df.set_table_styles(
+            [
+                {'selector': 'th:nth-child(5)', 'props': [('display', 'none')]},
+                {'selector': 'td:nth-child(5)', 'props': [('display', 'none')]}
+            ]
         )
 
         # ----------------------------
@@ -116,11 +144,7 @@ if uploaded_file:
         # -------------------------------------------------
         # Step 5: Display the Fully Expanded Color-Coded Table
         # -------------------------------------------------
-        # Render the styled DataFrame to HTML
         html_table = styled_display_df.to_html()
-
-        # Display the HTML table directly using st.markdown.
-        # This approach renders the full table without a fixed height.
         st.markdown(html_table, unsafe_allow_html=True)
 
     except Exception as e:
