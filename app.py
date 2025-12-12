@@ -103,9 +103,9 @@ if uploaded_file:
             if row["Server"] == "Overall Total":
                 return ["background-color: blue; color: white; border: 2px solid black"] * len(row)
             percentage = row["Tablet Use Percentage (Numeric)"]
-            if percentage >= 70:
+            if percentage >= 90:
                 return ["background-color: green; color: white; border: 2px solid black"] * len(row)
-            elif 50 <= percentage < 70:
+            elif 80 <= percentage < 90:
                 return ["background-color: yellow; color: black; border: 2px solid black"] * len(row)
             else:
                 return ["background-color: red; color: white; border: 2px solid black"] * len(row)
